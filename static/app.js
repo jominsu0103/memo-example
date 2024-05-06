@@ -52,7 +52,11 @@ const displayMemo = (memo) => {
   li.appendChild(delBtn);
 };
 
-const createMemo = async (value) => {
+const createMemo = async (title, content) => {
+  const currentDate = new Date();
+  const formattedDate = currentDate.toISOString().split("T")[0];
+  console.log(formattedDate);
+  console.log(title, content);
   const res = await fetch("/memos", {
     method: "POST",
     headers: {
@@ -60,17 +64,25 @@ const createMemo = async (value) => {
     },
     body: JSON.stringify({
       id: new Date().getTime(),
-      content: value,
+      title: title,
+      content: content,
+      createdAt: formattedDate,
     }),
   });
+  const jsonRes = await res.json();
+  console.log("[서버] 메모 생성 요청: ", jsonRes);
   readMemo();
 };
 
 const handleSubmit = (event) => {
   event.preventDefault();
   const input = document.querySelector("#memo-input");
-  createMemo(input.value);
+  const content = input.value;
+  const title = document.querySelector("#memo-title");
+  console.log("title:", title.value, "content:", content);
+  createMemo(title.value, content);
   input.value = "";
+  title.value = "";
 };
 
 const form = document.querySelector("#memo-form");

@@ -8,7 +8,8 @@ class Memo(BaseModel):
   title:str
   content:str
   createdAt:str
-  
+
+
 class Message(BaseModel):
   sender:str
   message:str
