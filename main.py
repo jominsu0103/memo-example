@@ -1,8 +1,9 @@
-from fastapi import FastAPI , Query
+from fastapi import FastAPI , Query , HTTPException
 from pydantic import BaseModel
 from typing import List
 from fastapi.staticfiles import StaticFiles
 from pymongo import MongoClient
+from bson import ObjectId 
 import json
 
 class Memo(BaseModel):
@@ -11,6 +12,9 @@ class Memo(BaseModel):
   content:str
   createdAt:str
 
+class Friend(BaseModel):
+  name:str
+  phoneNumber:str
 
 class Message(BaseModel):
   sender:str
@@ -85,5 +89,46 @@ def delete_memo(memo_id:str):
     else:
         return '메모를 찾을 수 없습니다'
 
+# friend
+# post method
+@app.post('/friend')
+async def add_friend(friend : Friend):
+  data = {
+    "name" : friend.name,
+    "phone_number" : friend.phoneNumber
+  }
+  result = collection.insert_one(data)
+  return {"message": "친구가 추가되었습니다.", "friend_id": str(result.inserted_id)}
+
+# get method
+@app.get("/friend")
+async def get_friends():
+    # MongoDB에서 모든 친구 조회
+    friends = list(collection.find())
+    # ObjectId 제거
+    for friend in friends:
+        friend['_id'] = str(friend['_id'])  # ObjectId를 문자열로 변환
+    return friends
+
+# get method (search by name)
+@app.get("/friend/search")
+async def search_friends_by_name(name: str = Query(..., description="검색할 친구의 이름")):
+    # MongoDB에서 이름으로 친구 검색
+    friends = list(collection.find({"name": name}))
+    # ObjectId 제거
+    for friend in friends:
+        friend['_id'] = str(friend['_id'])  # ObjectId를 문자열로 변환
+    if not friends:
+        raise HTTPException(status_code=404, detail="해당 이름의 친구를 찾을 수 없습니다.")
+    return friends
+
+# delete method
+@app.delete("/friend/{friend_id}")
+async def delete_friend(friend_id: str):
+    # MongoDB에서 친구 삭제
+    result = collection.delete_one({"_id": ObjectId(friend_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="해당 ID의 친구를 찾을 수 없습니다.")
+    return {"message": "친구가 삭제되었습니다."}
 
 app.mount("/", StaticFiles(directory='static' , html= True), name='static')
