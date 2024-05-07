@@ -16,16 +16,6 @@ class Message(BaseModel):
   sender:str
   message:str
 
-#정렬하기 위한 함수
-def sort_memo_by_property(memos: List[Memo], prop: str, order: str):
-    if prop == "createdAt":
-        return sorted(memos, key=lambda x: x.createdAt, reverse=(order == "DESC"))
-    else:
-        if order == "ASC":
-            return sorted(memos, key=lambda x: getattr(x, prop).lower())
-        else:
-            return sorted(memos, key=lambda x: getattr(x, prop).lower(), reverse=True)
-
 client = MongoClient('mongodb://127.0.0.1:27017/')
 db = client['database_test']
 collection = db['mycollection']
@@ -45,6 +35,7 @@ async def get_chat_log():
   return chat_log
 
 # 메모 부분
+# post method
 @app.post("/memos")
 def create_memo(memo:Memo):
   data = {
@@ -56,6 +47,7 @@ def create_memo(memo:Memo):
   result = collection.insert_one(data)
   return 'request successful'
 
+# get method
 @app.get("/memos")
 def read_memo(sort: str = Query(None, description="정렬 속성"),
               order: str = Query("ASC", description="정렬 순서 (ASC 또는 DESC)")):
@@ -70,8 +62,7 @@ def read_memo(sort: str = Query(None, description="정렬 속성"),
     serialized_memos = [{key: memo[key] for key in memo if key != '_id'} for memo in memos]
     return serialized_memos
 
-
-
+# put method
 @app.put('/memos/{memo_id}')
 def put_memo(memo_id:str ,req_memo:Memo):
   # MongoDB에서 메모 업데이트
@@ -84,6 +75,7 @@ def put_memo(memo_id:str ,req_memo:Memo):
     else:
         return '메모를 찾을 수 없습니다'
 
+# delete method
 @app.delete('/memos/{memo_id}')
 def delete_memo(memo_id:str):
   # MongoDB에서 메모 삭제
