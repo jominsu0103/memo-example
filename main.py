@@ -5,6 +5,22 @@ from fastapi.staticfiles import StaticFiles
 from pymongo import MongoClient
 from bson import ObjectId 
 import json
+import hashlib
+import jwt
+import datetime
+
+# 비밀 키
+secret_key = "mysecretkey"
+
+async def generateJWT(email , user_id):
+  payload = {
+    "email" : email,
+    "user_id" : user_id,
+    "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+  }
+  token = jwt.encode(payload,secret_key,algorithm="HS256")
+  print("token",token)
+  return token
 
 class Memo(BaseModel):
   id:int
@@ -19,6 +35,9 @@ class Friend(BaseModel):
 class Message(BaseModel):
   sender:str
   message:str
+
+async def hash_password(password):
+  return hashlib.sha256(password.encode()).hexdigest()
 
 client = MongoClient('mongodb://127.0.0.1:27017/')
 db = client['database_test']
@@ -130,5 +149,29 @@ async def delete_friend(friend_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="해당 ID의 친구를 찾을 수 없습니다.")
     return {"message": "친구가 삭제되었습니다."}
+
+# user 부분
+# post method
+@app.post('/signup')
+async def add_user(email:str,password:str):
+  hashed_password = await hash_password(password)
+  print(hashed_password)
+  data = {
+    "email": email,
+    "password": hashed_password
+  }
+  result = collection.insert_one(data)
+  return {"message": "유저가 추가되었습니다.", "user_id": str(result.inserted_id)}
+
+# post method
+@app.post('/login')
+async def login_user(email:str,password:str):
+  user = collection.find_one({"email":email})
+  if user is None or user["password"] != await hash_password(password):
+        raise HTTPException(status_code=401, detail="인증 실패: 이메일 또는 비밀번호가 올바르지 않습니다.")
+  user_id = str(user["_id"])  # 사용자 ID를 문자열로 변환
+  token = await generateJWT(email, user_id)
+  
+  return {"user_id": user_id, "token": token}
 
 app.mount("/", StaticFiles(directory='static' , html= True), name='static')
