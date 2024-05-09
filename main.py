@@ -9,18 +9,45 @@ import hashlib
 import jwt
 import datetime
 
+
 # 비밀 키
 secret_key = "mysecretkey"
+refresh_secret_key = "myrefresh_secret"
 
 async def generateJWT(email , user_id):
+  # 현재 시간을 UTC 기준으로 가져오기
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
+  
+  # 만료 시간 설정 (현재 시간에서 1주일 후로 설정)
+  expiration_time = now_utc + datetime.timedelta(hours=1)
   payload = {
     "email" : email,
     "user_id" : user_id,
-    "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    "exp": expiration_time
   }
   token = jwt.encode(payload,secret_key,algorithm="HS256")
   print("token",token)
   return token
+
+async def generateRefreshToken(email:str , user_id:str) -> str:
+  
+  # 현재 시간을 UTC 기준으로 가져오기
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
+  # 만료 시간 설정 (현재 시간에서 1주일 후로 설정)
+  expiration_time = now_utc + datetime.timedelta(weeks=1)
+
+  payload = {
+    "email": email,
+    "user_id": user_id,
+    "exp": expiration_time
+  }
+  refresh_token = jwt.encode(payload, refresh_secret_key, algorithm='HS256')
+  return refresh_token
+
+async def decode_refresh_token(refresh_token):
+  decoded_token = jwt.decode(refresh_token , refresh_secret_key , algorithms=["HS256"])
+  
+  return decoded_token['email'], decoded_token['user_id']
 
 class Memo(BaseModel):
   id:int
@@ -170,8 +197,25 @@ async def login_user(email:str,password:str):
   if user is None or user["password"] != await hash_password(password):
         raise HTTPException(status_code=401, detail="인증 실패: 이메일 또는 비밀번호가 올바르지 않습니다.")
   user_id = str(user["_id"])  # 사용자 ID를 문자열로 변환
-  token = await generateJWT(email, user_id)
+  access_token = await generateJWT(email, user_id)
+  refresh_token = await generateRefreshToken(email, user_id)
   
-  return {"user_id": user_id, "token": token}
+  add_refresh_token = collection.update_one({"_id": user["_id"]}, {"$set": {"refresh_token": refresh_token}})
+  
+  print(add_refresh_token)
+  
+  return {"user_id": user_id, "token": access_token , "refresh_token": refresh_token}
+
+@app.post('/refresh_token')
+async def refresh_token(refresh_token:str):
+  is_valid_refresh_token = collection.find_one({"refresh_token":refresh_token})
+  if is_valid_refresh_token is None:
+    raise HTTPException(status_code=401, detail="Refresh token이 유효하지 않습니다.")
+  email ,user_id = await decode_refresh_token(refresh_token)
+  
+  access_token = await generateJWT(email, user_id)
+  
+  return {"token": access_token}
 
 app.mount("/", StaticFiles(directory='static' , html= True), name='static')
+
