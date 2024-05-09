@@ -1,4 +1,4 @@
-from fastapi import FastAPI , Query , HTTPException
+from fastapi import FastAPI , Query , HTTPException , Request,Response,Cookie
 from pydantic import BaseModel
 from typing import List
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +13,11 @@ import datetime
 # 비밀 키
 secret_key = "mysecretkey"
 refresh_secret_key = "myrefresh_secret"
+
+async def verify_token(token:str):
+  decode_token = jwt.decode(token,secret_key,algorithms=["HS256"])
+  
+  return decode_token['email'] , decode_token['user_id']
 
 async def generateJWT(email , user_id):
   # 현재 시간을 UTC 기준으로 가져오기
@@ -216,6 +221,26 @@ async def refresh_token(refresh_token:str):
   access_token = await generateJWT(email, user_id)
   
   return {"token": access_token}
+
+# cookie example
+# @app.get("/protected")
+# async def protected_route(access_token: str = Cookie(None)):
+#     if access_token is None:
+#         raise HTTPException(status_code=401, detail="인증 실패: 액세스 토큰이 없습니다.")
+#     email , user_id = await verify_token(access_token)
+    
+#     return {"email": email , "user_id": user_id}
+
+# @app.post('/login')
+# async def login_user(email:str,password:str,response: Response):
+#   user = collection.find_one({"email":email})
+#   if user is None or user["password"] != await hash_password(password):
+#         raise HTTPException(status_code=401, detail="인증 실패: 이메일 또는 비밀번호가 올바르지 않습니다.")
+#   user_id = str(user["_id"])  # 사용자 ID를 문자열로 변환
+#   access_token = await generateJWT(email, user_id)
+  
+#   response.set_cookie(key="access_token", value=access_token)
+#   return {"message": "로그인 성공"}
 
 app.mount("/", StaticFiles(directory='static' , html= True), name='static')
 
